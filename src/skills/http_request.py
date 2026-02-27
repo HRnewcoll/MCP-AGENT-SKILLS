@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+
+# Private / loopback / link-local IPv4 and IPv6 networks that should not be
+# reachable via this skill to prevent SSRF attacks.
+_BLOCKED_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.IPv4Network("127.0.0.0/8"),       # loopback
+    ipaddress.IPv4Network("10.0.0.0/8"),        # private class A
+    ipaddress.IPv4Network("172.16.0.0/12"),     # private class B
+    ipaddress.IPv4Network("192.168.0.0/16"),    # private class C
+    ipaddress.IPv4Network("169.254.0.0/16"),    # link-local / cloud metadata
+    ipaddress.IPv6Network("::1/128"),           # IPv6 loopback
+    ipaddress.IPv6Network("fc00::/7"),          # IPv6 unique-local
+    ipaddress.IPv6Network("fe80::/10"),         # IPv6 link-local
+)
+
+
+def _is_blocked(hostname: str) -> bool:
+    """Return True if *hostname* resolves to a private/loopback address."""
+    try:
+        addr_str = socket.getaddrinfo(hostname, None)[0][4][0]
+        addr = ipaddress.ip_address(addr_str)
+        return any(addr in net for net in _BLOCKED_NETWORKS)
+    except (socket.gaierror, ValueError):
+        return False
 
 
 class HttpRequestSkill:
@@ -56,6 +81,11 @@ class HttpRequestSkill:
             return "Error: url is required"
         if not url.startswith(("http://", "https://")):
             return "Error: url must start with http:// or https://"
+
+        parsed = urllib.parse.urlparse(url)
+        hostname = parsed.hostname or ""
+        if _is_blocked(hostname):
+            return "Error: requests to private or loopback addresses are not allowed"
 
         extra_headers: dict = {}
         if headers:

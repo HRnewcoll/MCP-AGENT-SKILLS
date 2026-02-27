@@ -1,6 +1,10 @@
 # Runtime-generated files
 .memory.json
 *.memory.json
+.tasks.json
+*.tasks.json
+.notes.json
+*.notes.json
 files/
 
 # Python

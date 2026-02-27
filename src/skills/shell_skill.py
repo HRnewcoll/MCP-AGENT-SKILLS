@@ -1,4 +1,12 @@
-"""Shell skill – execute shell commands in a sandboxed subprocess."""
+"""Shell skill – execute shell commands in a sandboxed subprocess.
+
+.. warning::
+   This skill uses ``shell=True`` which allows full shell syntax (pipes,
+   redirects, etc.) but also means that the command string is interpreted by
+   the shell. A blocklist guards against a small set of obviously destructive
+   patterns, but it is **not** a security boundary. Only expose this skill to
+   trusted agents or in controlled environments.
+"""
 
 from __future__ import annotations
 

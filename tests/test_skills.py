@@ -631,3 +631,30 @@ class TestNoteTakerSkill:
 
     def test_unknown_action(self):
         assert self._make_skill().run("explode").startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# HttpRequestSkill  (validation / SSRF tests only – no live network calls)
+# ---------------------------------------------------------------------------
+
+class TestHttpRequestSkill:
+    from src.skills.http_request import HttpRequestSkill
+    skill = HttpRequestSkill()
+
+    def test_missing_url(self):
+        assert self.skill.run("get", url="").startswith("Error:")
+
+    def test_invalid_scheme(self):
+        assert self.skill.run("get", url="ftp://example.com").startswith("Error:")
+
+    def test_loopback_blocked(self):
+        assert self.skill.run("get", url="http://127.0.0.1/").startswith("Error:")
+
+    def test_localhost_blocked(self):
+        assert self.skill.run("get", url="http://localhost/").startswith("Error:")
+
+    def test_invalid_headers_json(self):
+        assert self.skill.run("get", url="https://example.com", headers="{bad}").startswith("Error:")
+
+    def test_unknown_action(self):
+        assert self.skill.run("explode", url="https://example.com").startswith("Error:")

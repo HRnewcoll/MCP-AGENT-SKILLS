@@ -111,10 +111,10 @@ class DatetimeSkill:
             return f"Error: could not parse date2 {date2!r}"
         delta = abs(dt2 - dt1)
         total_seconds = int(delta.total_seconds())
-        d = delta.days
-        h, rem = divmod(total_seconds % 86400, 3600)
-        m, s = divmod(rem, 60)
-        return f"{d} days, {h} hours, {m} minutes, {s} seconds"
+        days = delta.days
+        hours, rem = divmod(total_seconds % 86400, 3600)
+        mins, secs = divmod(rem, 60)
+        return f"{days} days, {hours} hours, {mins} minutes, {secs} seconds"
 
     def _add(self, date: str, days: int, hours: int, minutes: int, fmt: str) -> str:
         if not date:

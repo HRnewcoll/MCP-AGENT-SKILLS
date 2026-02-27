@@ -187,7 +187,7 @@ class JsonProcessorSkill:
                 target = json.loads(result)
             except json.JSONDecodeError:
                 target = result
-        type_map: dict = {
+        type_map: dict[type, str] = {
             dict: "object",
             list: "array",
             str: "string",
