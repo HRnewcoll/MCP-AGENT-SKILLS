@@ -45,9 +45,9 @@ class TestMCPServer:
         tools = {t.name for t in server._tool_manager.list_tools()}
         assert "web_search" in tools
 
-    def test_six_tools_total(self, server):
+    def test_twenty_tools_total(self, server):
         tools = list(server._tool_manager.list_tools())
-        assert len(tools) == 6
+        assert len(tools) == 20
 
     @pytest.mark.asyncio
     async def test_calculator_tool_call(self, server):
@@ -76,3 +76,104 @@ class TestMCPServer:
     def test_agent_task_prompt_registered(self, server):
         prompts = {p.name for p in server._prompt_manager.list_prompts()}
         assert "agent_task" in prompts
+
+    # New tool registration tests
+
+    def test_data_converter_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "data_converter" in tools
+
+    def test_datetime_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "datetime" in tools
+
+    def test_diff_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "diff_tool" in tools
+
+    def test_hash_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "hash_tool" in tools
+
+    def test_http_request_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "http_request" in tools
+
+    def test_json_processor_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "json_processor" in tools
+
+    def test_note_taker_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "note_taker" in tools
+
+    def test_random_generator_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "random_generator" in tools
+
+    def test_regex_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "regex_tool" in tools
+
+    def test_shell_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "shell" in tools
+
+    def test_system_info_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "system_info" in tools
+
+    def test_task_list_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "task_list" in tools
+
+    def test_text_processor_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "text_processor" in tools
+
+    def test_unit_converter_tool_registered(self, server):
+        tools = {t.name for t in server._tool_manager.list_tools()}
+        assert "unit_converter" in tools
+
+    @pytest.mark.asyncio
+    async def test_datetime_tool_call(self, server):
+        result = await server.call_tool("datetime", {"action": "now"})
+        text = " ".join(str(item) for item in result)
+        assert "UTC" in text
+
+    @pytest.mark.asyncio
+    async def test_hash_tool_call(self, server):
+        result = await server.call_tool("hash_tool", {"action": "sha256", "text": "hello"})
+        text = " ".join(str(item) for item in result)
+        assert "2cf24dba" in text
+
+    @pytest.mark.asyncio
+    async def test_text_processor_tool_call(self, server):
+        result = await server.call_tool(
+            "text_processor", {"action": "uppercase", "text": "hello"}
+        )
+        text = " ".join(str(item) for item in result)
+        assert "HELLO" in text
+
+    @pytest.mark.asyncio
+    async def test_unit_converter_tool_call(self, server):
+        result = await server.call_tool(
+            "unit_converter",
+            {"category": "length", "value": 1.0, "from_unit": "km", "to_unit": "m"},
+        )
+        text = " ".join(str(item) for item in result)
+        assert "1000" in text
+
+    @pytest.mark.asyncio
+    async def test_random_generator_uuid(self, server):
+        import re
+        result = await server.call_tool("random_generator", {"action": "uuid"})
+        text = " ".join(str(item) for item in result)
+        assert re.search(r"[0-9a-f\-]{36}", text)
+
+    @pytest.mark.asyncio
+    async def test_task_list_add_list(self, server):
+        await server.call_tool("task_list", {"action": "add", "title": "MCP task"})
+        result = await server.call_tool("task_list", {"action": "list"})
+        text = " ".join(str(item) for item in result)
+        assert "MCP task" in text
