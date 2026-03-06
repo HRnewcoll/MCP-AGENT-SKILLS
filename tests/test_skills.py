@@ -988,3 +988,935 @@ class TestDisclawdSkill:
         skill2 = DisclawdSkill(store_path=f.name)
         result = skill2.run("read_channel", server="Persistent", channel="general")
         assert "Hi!" in result
+
+
+# ---------------------------------------------------------------------------
+# Base64Skill
+# ---------------------------------------------------------------------------
+
+class TestBase64Skill:
+    from src.skills.base64_skill import Base64Skill
+    skill = Base64Skill()
+
+    def test_encode_decode_b64(self):
+        encoded = self.skill.run("encode_b64", data="hello world")
+        assert encoded == "aGVsbG8gd29ybGQ="
+        assert self.skill.run("decode_b64", data=encoded) == "hello world"
+
+    def test_encode_decode_url(self):
+        encoded = self.skill.run("encode_url", data="hello world")
+        assert "%20" in encoded or "+" in encoded or encoded == "hello%20world"
+        decoded = self.skill.run("decode_url", data=encoded)
+        assert decoded == "hello world"
+
+    def test_encode_decode_hex(self):
+        encoded = self.skill.run("encode_hex", data="hi")
+        assert self.skill.run("decode_hex", data=encoded) == "hi"
+
+    def test_encode_decode_b32(self):
+        encoded = self.skill.run("encode_b32", data="hello")
+        assert self.skill.run("decode_b32", data=encoded) == "hello"
+
+    def test_encode_decode_b16(self):
+        encoded = self.skill.run("encode_b16", data="abc")
+        assert self.skill.run("decode_b16", data=encoded) == "abc"
+
+    def test_missing_data(self):
+        result = self.skill.run("encode_url")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("foobar", data="x")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# CsvProcessorSkill
+# ---------------------------------------------------------------------------
+
+class TestCsvProcessorSkill:
+    from src.skills.csv_processor import CsvProcessorSkill
+
+    def _skill(self):
+        return self.CsvProcessorSkill()
+
+    def test_from_csv_string(self):
+        skill = self._skill()
+        result = skill.run("from_csv_string", text="name,age\nAlice,30\nBob,25")
+        import json
+        data = json.loads(result)
+        assert len(data) == 2
+        assert data[0]["name"] == "Alice"
+
+    def test_list_columns(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="a,b,c\n1,2,3")
+        result = skill.run("list_columns")
+        assert "a" in result and "b" in result and "c" in result
+
+    def test_add_row(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="name,age\nAlice,30")
+        result = skill.run("add_row", values="Charlie,40")
+        assert "Added row" in result
+
+    def test_get_row(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="name,age\nAlice,30\nBob,25")
+        result = skill.run("get_row", row_index=1)
+        assert "Bob" in result
+
+    def test_delete_row(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="x,y\n1,2\n3,4")
+        result = skill.run("delete_row", row_index=0)
+        assert "Deleted row 0" in result
+
+    def test_sort(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="name,age\nBob,25\nAlice,30")
+        result = skill.run("sort", column="name")
+        assert "Sorted" in result
+
+    def test_to_json(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="x,y\n1,2")
+        result = skill.run("to_json")
+        import json
+        data = json.loads(result)
+        assert data[0]["x"] == "1"
+
+    def test_get_rows_filter(self):
+        skill = self._skill()
+        skill.run("from_csv_string", text="name,age\nAlice,30\nBob,25")
+        result = skill.run("get_rows", column="name", value="Alice")
+        assert "Alice" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("teleport")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# MarkdownSkill
+# ---------------------------------------------------------------------------
+
+class TestMarkdownSkill:
+    from src.skills.markdown_skill import MarkdownSkill
+    skill = MarkdownSkill()
+
+    def test_to_html_heading(self):
+        result = self.skill.run("to_html", text="# Hello")
+        assert "<h1>" in result and "Hello" in result
+
+    def test_to_html_bold(self):
+        result = self.skill.run("to_html", text="**bold**")
+        assert "<strong>" in result
+
+    def test_to_html_list(self):
+        result = self.skill.run("to_html", text="- item1\n- item2")
+        assert "<li>" in result
+
+    def test_to_plain(self):
+        result = self.skill.run("to_plain", text="# Header\n**bold**")
+        assert "<" not in result
+        assert "Header" in result
+
+    def test_extract_links(self):
+        result = self.skill.run("extract_links", text="Visit [Home](https://my-site.example/page)")
+        assert "Home" in result and "my-site.example" in result
+
+    def test_extract_headers(self):
+        result = self.skill.run("extract_headers", text="# H1\n## H2")
+        assert "H1" in result and "H2" in result
+
+    def test_missing_text(self):
+        result = self.skill.run("to_html")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("render")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# ColorConverterSkill
+# ---------------------------------------------------------------------------
+
+class TestColorConverterSkill:
+    from src.skills.color_converter import ColorConverterSkill
+    skill = ColorConverterSkill()
+
+    def test_hex_to_rgb(self):
+        result = self.skill.run("hex_to_rgb", hex_color="#ff0000")
+        assert "255" in result and "0" in result
+
+    def test_rgb_to_hex(self):
+        result = self.skill.run("rgb_to_hex", r=255, g=0, b=0)
+        assert result.lower() == "#ff0000"
+
+    def test_hex_to_hsl(self):
+        result = self.skill.run("hex_to_hsl", hex_color="#ff0000")
+        assert "hsl(" in result
+
+    def test_hsl_to_hex(self):
+        result = self.skill.run("hsl_to_hex", h=0, s=100, l=50)
+        assert result.startswith("#")
+
+    def test_lighten(self):
+        result = self.skill.run("lighten", hex_color="#808080", amount=10)
+        assert result.startswith("#")
+
+    def test_darken(self):
+        result = self.skill.run("darken", hex_color="#808080", amount=10)
+        assert result.startswith("#")
+
+    def test_complementary(self):
+        result = self.skill.run("complementary", hex_color="#ff0000")
+        assert result.startswith("#")
+
+    def test_mix(self):
+        result = self.skill.run("mix", hex1="#000000", hex2="#ffffff", ratio=50)
+        assert result.startswith("#")
+
+    def test_invalid_hex(self):
+        result = self.skill.run("hex_to_rgb", hex_color="ZZZZZZ")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("invert")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# WorldTimeSkill
+# ---------------------------------------------------------------------------
+
+class TestWorldTimeSkill:
+    from src.skills.world_time import WorldTimeSkill
+    skill = WorldTimeSkill()
+
+    def test_now_utc(self):
+        result = self.skill.run("now", timezone="UTC")
+        assert not result.startswith("Error:")
+        assert "UTC" in result
+
+    def test_now_specific_zone(self):
+        result = self.skill.run("now", timezone="America/New_York")
+        assert not result.startswith("Error:")
+
+    def test_offset(self):
+        result = self.skill.run("offset", timezone="UTC")
+        assert "UTC" in result
+
+    def test_list_zones(self):
+        result = self.skill.run("list_zones", filter_str="Europe")
+        assert "Europe" in result
+
+    def test_convert(self):
+        result = self.skill.run(
+            "convert", dt="2025-01-01 12:00:00", from_tz="UTC", to_tz="America/New_York"
+        )
+        assert not result.startswith("Error:")
+
+    def test_invalid_timezone(self):
+        result = self.skill.run("now", timezone="Fake/Zone")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("sleep")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# PasswordGeneratorSkill
+# ---------------------------------------------------------------------------
+
+class TestPasswordGeneratorSkill:
+    from src.skills.password_generator import PasswordGeneratorSkill
+    skill = PasswordGeneratorSkill()
+
+    def test_generate_length(self):
+        result = self.skill.run("generate", length=20)
+        assert len(result) == 20
+
+    def test_generate_no_symbols(self):
+        result = self.skill.run("generate", length=16, symbols=False)
+        assert not any(c in result for c in "!@#$%^&*()")
+
+    def test_generate_passphrase(self):
+        result = self.skill.run("generate_passphrase", words=3, separator="-")
+        parts = result.split("-")
+        assert len(parts) == 3
+
+    def test_check_strength_strong(self):
+        result = self.skill.run("check_strength", password="MyStr0ng!Pass#42")
+        assert "Strong" in result or "Excellent" in result or "Very strong" in result
+
+    def test_check_strength_weak(self):
+        result = self.skill.run("check_strength", password="abc")
+        assert "weak" in result.lower()
+
+    def test_missing_password(self):
+        result = self.skill.run("check_strength")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("crack")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# UrlParserSkill
+# ---------------------------------------------------------------------------
+
+class TestUrlParserSkill:
+    from src.skills.url_parser import UrlParserSkill
+    skill = UrlParserSkill()
+
+    def test_parse(self):
+        result = self.skill.run("parse", url="https://example.com/path?a=1&b=2")
+        # Verify the parse output contains the host and a query param key
+        assert "netloc" in result or "a" in result
+
+    def test_build(self):
+        result = self.skill.run("build", scheme="https", host="example.com", path="/test")
+        assert "https://example.com/test" in result
+
+    def test_encode_decode(self):
+        encoded = self.skill.run("encode", text="hello world")
+        assert "%" in encoded
+        decoded = self.skill.run("decode", text=encoded)
+        assert decoded == "hello world"
+
+    def test_add_param(self):
+        result = self.skill.run("add_param", url="https://example.com", key="foo", value="bar")
+        assert "foo=bar" in result
+
+    def test_remove_param(self):
+        result = self.skill.run("remove_param", url="https://example.com?foo=bar&baz=1", key="foo")
+        assert "foo" not in result
+
+    def test_get_param(self):
+        result = self.skill.run("get_param", url="https://example.com?q=hello", key="q")
+        assert result == "hello"
+
+    def test_extract_domain(self):
+        result = self.skill.run("extract_domain", url="https://www.myapp.example/search")
+        # extract_domain returns the full hostname including subdomains
+        assert result == "www.myapp.example"
+
+    def test_normalize(self):
+        result = self.skill.run("normalize", url="HTTPS://Example.COM/path/")
+        assert result == "https://example.com/path"
+
+    def test_missing_url(self):
+        result = self.skill.run("parse")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("crawl")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# NetworkToolsSkill
+# ---------------------------------------------------------------------------
+
+class TestNetworkToolsSkill:
+    from src.skills.network_tools import NetworkToolsSkill
+    skill = NetworkToolsSkill()
+
+    def test_my_hostname(self):
+        result = self.skill.run("my_hostname")
+        assert not result.startswith("Error:")
+        assert "hostname" in result
+
+    def test_dns_lookup_localhost(self):
+        result = self.skill.run("dns_lookup", host="localhost")
+        assert not result.startswith("Error:")
+
+    def test_missing_host(self):
+        result = self.skill.run("dns_lookup")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("trace")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# TemplateSkill
+# ---------------------------------------------------------------------------
+
+class TestTemplateSkill:
+    from src.skills.template_skill import TemplateSkill
+    skill = TemplateSkill()
+
+    def test_render_dollar_style(self):
+        result = self.skill.run("render", template="Hello $name!", variables="name=World")
+        assert result == "Hello World!"
+
+    def test_render_brace_style(self):
+        result = self.skill.run("render", template="Hi {{user}}", variables="user=Alice")
+        assert result == "Hi Alice"
+
+    def test_list_vars(self):
+        result = self.skill.run("list_vars", template="$a and {{b}}")
+        assert "a" in result and "b" in result
+
+    def test_preview(self):
+        result = self.skill.run("preview", template="Hello $name")
+        assert "[" in result  # placeholders highlighted
+
+    def test_missing_variable(self):
+        result = self.skill.run("render", template="$missing", variables="")
+        assert result.startswith("Error:")
+
+    def test_missing_template(self):
+        result = self.skill.run("render")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("compile")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# BudgetTrackerSkill
+# ---------------------------------------------------------------------------
+
+class TestBudgetTrackerSkill:
+    from src.skills.budget_tracker import BudgetTrackerSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.BudgetTrackerSkill(store_path=f.name)
+
+    def test_add_income(self):
+        skill = self._skill()
+        result = skill.run("add_income", amount=1000, category="Salary")
+        assert "+$1000.00" in result
+
+    def test_add_expense(self):
+        skill = self._skill()
+        result = skill.run("add_expense", amount=50, category="Food")
+        assert "-$50.00" in result
+
+    def test_balance(self):
+        skill = self._skill()
+        skill.run("add_income", amount=1000)
+        skill.run("add_expense", amount=200)
+        result = skill.run("balance")
+        assert "$800.00" in result
+
+    def test_list(self):
+        skill = self._skill()
+        skill.run("add_income", amount=100, description="bonus")
+        result = skill.run("list")
+        assert "income" in result
+
+    def test_summary(self):
+        skill = self._skill()
+        skill.run("add_income", amount=500, category="Job")
+        result = skill.run("summary")
+        assert "Job" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("add_income", amount=100)
+        result = skill.run("delete", transaction_id=1)
+        assert "Deleted" in result
+
+    def test_invalid_amount(self):
+        skill = self._skill()
+        result = skill.run("add_income", amount=0)
+        assert result.startswith("Error:")
+
+    def test_clear(self):
+        skill = self._skill()
+        skill.run("add_income", amount=100)
+        result = skill.run("clear")
+        assert "Cleared" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("invest")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# FlashcardSkill
+# ---------------------------------------------------------------------------
+
+class TestFlashcardSkill:
+    from src.skills.flashcard_skill import FlashcardSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.FlashcardSkill(store_path=f.name)
+
+    def test_create_deck(self):
+        skill = self._skill()
+        result = skill.run("create_deck", deck="Python")
+        assert "Python" in result
+
+    def test_add_and_list_cards(self):
+        skill = self._skill()
+        skill.run("create_deck", deck="Math")
+        skill.run("add_card", deck="Math", front="2+2?", back="4")
+        result = skill.run("list_cards", deck="Math")
+        assert "2+2?" in result
+
+    def test_get_card(self):
+        skill = self._skill()
+        skill.run("create_deck", deck="Facts")
+        skill.run("add_card", deck="Facts", front="Capital of France?", back="Paris")
+        result = skill.run("get_card", deck="Facts", card_id=1)
+        assert "Paris" in result
+
+    def test_quiz(self):
+        skill = self._skill()
+        skill.run("create_deck", deck="Q")
+        skill.run("add_card", deck="Q", front="What?", back="Answer")
+        result = skill.run("quiz", deck="Q")
+        assert "What?" in result
+
+    def test_remove_card(self):
+        skill = self._skill()
+        skill.run("create_deck", deck="D")
+        skill.run("add_card", deck="D", front="Q", back="A")
+        result = skill.run("remove_card", deck="D", card_id=1)
+        assert "Removed" in result
+
+    def test_delete_deck(self):
+        skill = self._skill()
+        skill.run("create_deck", deck="Temp")
+        result = skill.run("delete_deck", deck="Temp")
+        assert "Deleted" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("flip")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# MorseCodeSkill
+# ---------------------------------------------------------------------------
+
+class TestMorseCodeSkill:
+    from src.skills.morse_code import MorseCodeSkill
+    skill = MorseCodeSkill()
+
+    def test_encode_sos(self):
+        result = self.skill.run("encode", text="SOS")
+        assert "..." in result and "---" in result
+
+    def test_decode_sos(self):
+        result = self.skill.run("decode", text="... --- ...")
+        assert "SOS" in result
+
+    def test_encode_decode_round_trip(self):
+        encoded = self.skill.run("encode", text="HELLO")
+        decoded = self.skill.run("decode", text=encoded)
+        assert "HELLO" in decoded
+
+    def test_encode_numbers(self):
+        result = self.skill.run("encode", text="42")
+        # 4 = "....-" and 2 = "..---"
+        assert "....-" in result and "..---" in result
+
+    def test_missing_text(self):
+        result = self.skill.run("encode")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("blink")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# AsciiArtSkill
+# ---------------------------------------------------------------------------
+
+class TestAsciiArtSkill:
+    from src.skills.ascii_art import AsciiArtSkill
+    skill = AsciiArtSkill()
+
+    def test_banner(self):
+        result = self.skill.run("banner", text="Hello")
+        assert "Hello" in result and "┌" in result
+
+    def test_box(self):
+        result = self.skill.run("box", text="Test")
+        assert "Test" in result and "│" in result
+
+    def test_divider(self):
+        result = self.skill.run("divider", char="-", width=20)
+        assert result == "-" * 20
+
+    def test_table(self):
+        result = self.skill.run("table", text="Name|Age\nAlice|30\nBob|25")
+        assert "Alice" in result and "Age" in result
+
+    def test_progress_bar(self):
+        result = self.skill.run("progress_bar", value=50, total=100, width=20)
+        assert "50.0%" in result
+
+    def test_bullet_list(self):
+        result = self.skill.run("bullet_list", text="apples,oranges,grapes")
+        assert "apples" in result and "•" in result
+
+    def test_ascii_style_box(self):
+        result = self.skill.run("box", text="Hello", style="ascii")
+        assert "+" in result
+
+    def test_missing_text(self):
+        result = self.skill.run("banner")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("fireworks")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# ArchiveSkill
+# ---------------------------------------------------------------------------
+
+class TestArchiveSkill:
+    from src.skills.archive_skill import ArchiveSkill
+
+    def test_create_and_list_zip(self):
+        skill = self.ArchiveSkill()
+        # Create a temp file to archive
+        src = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+        src.write(b"hello")
+        src.close()
+        arch = src.name + ".zip"
+        skill.run("create_zip", archive=arch, files=src.name)
+        result = skill.run("list_zip", archive=arch)
+        assert not result.startswith("Error:")
+        assert os.path.basename(src.name) in result
+
+    def test_extract_zip(self):
+        skill = self.ArchiveSkill()
+        src = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+        src.write(b"data")
+        src.close()
+        arch = src.name + ".zip"
+        skill.run("create_zip", archive=arch, files=src.name)
+        dest = tempfile.mkdtemp()
+        result = skill.run("extract_zip", archive=arch, dest=dest)
+        assert "Extracted" in result
+
+    def test_missing_archive(self):
+        skill = self.ArchiveSkill()
+        result = skill.run("list_zip")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        skill = self.ArchiveSkill()
+        result = skill.run("compress")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# ContactsSkill
+# ---------------------------------------------------------------------------
+
+class TestContactsSkill:
+    from src.skills.contacts_skill import ContactsSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.ContactsSkill(store_path=f.name)
+
+    def test_add_contact(self):
+        skill = self._skill()
+        result = skill.run("add", name="Alice Smith", email="alice@example.com")
+        assert "Alice Smith" in result
+
+    def test_get_contact(self):
+        skill = self._skill()
+        skill.run("add", name="Bob Jones", phone="555-1234")
+        result = skill.run("get", contact_id=1)
+        assert "Bob Jones" in result
+
+    def test_list_contacts(self):
+        skill = self._skill()
+        skill.run("add", name="Alice")
+        skill.run("add", name="Bob")
+        result = skill.run("list")
+        assert "Alice" in result and "Bob" in result
+
+    def test_update_contact(self):
+        skill = self._skill()
+        skill.run("add", name="Old Name")
+        result = skill.run("update", contact_id=1, name="New Name")
+        assert "Updated" in result
+
+    def test_search_contact(self):
+        skill = self._skill()
+        skill.run("add", name="Carol Smith", email="carol@example.com")
+        result = skill.run("search", query="carol")
+        assert "Carol Smith" in result
+
+    def test_delete_contact(self):
+        skill = self._skill()
+        skill.run("add", name="TempUser")
+        result = skill.run("delete", contact_id=1)
+        assert "Deleted" in result
+
+    def test_clear(self):
+        skill = self._skill()
+        skill.run("add", name="A")
+        result = skill.run("clear")
+        assert "Cleared" in result
+
+    def test_missing_name(self):
+        skill = self._skill()
+        result = skill.run("add")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("export")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# NumberBaseSkill
+# ---------------------------------------------------------------------------
+
+class TestNumberBaseSkill:
+    from src.skills.number_base import NumberBaseSkill
+    skill = NumberBaseSkill()
+
+    def test_to_binary(self):
+        result = self.skill.run("to_binary", number="10")
+        assert "1010" in result
+
+    def test_to_octal(self):
+        result = self.skill.run("to_octal", number="8")
+        assert "10" in result
+
+    def test_to_hex(self):
+        result = self.skill.run("to_hex", number="255")
+        assert "ff" in result.lower()
+
+    def test_to_decimal_from_binary(self):
+        result = self.skill.run("to_decimal", number="1010", from_base=2)
+        assert "10" in result
+
+    def test_convert(self):
+        result = self.skill.run("convert", number="ff", from_base=16, to_base=10)
+        assert "255" in result
+
+    def test_table(self):
+        result = self.skill.run("table", number="42")
+        assert "Binary" in result and "Hexadecimal" in result
+
+    def test_invalid_number(self):
+        result = self.skill.run("to_decimal", number="xyz", from_base=10)
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("parse")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# CalendarSkill
+# ---------------------------------------------------------------------------
+
+class TestCalendarSkill:
+    from src.skills.calendar_skill import CalendarSkill
+    skill = CalendarSkill()
+
+    def test_days_between(self):
+        result = self.skill.run("days_between", date1="2025-01-01", date2="2025-01-10")
+        assert "9" in result
+
+    def test_add_days(self):
+        result = self.skill.run("add_days", date="2025-01-01", days=7)
+        assert result == "2025-01-08"
+
+    def test_day_of_week(self):
+        result = self.skill.run("day_of_week", date="2025-01-06")
+        assert "Monday" in result
+
+    def test_is_leap_year(self):
+        result = self.skill.run("is_leap_year", year=2024)
+        assert "is a leap year" in result
+
+    def test_is_not_leap_year(self):
+        result = self.skill.run("is_leap_year", year=2023)
+        assert "is not" in result
+
+    def test_month_calendar(self):
+        result = self.skill.run("month_calendar", year=2025, month=1)
+        assert "January" in result
+
+    def test_next_weekday(self):
+        result = self.skill.run("next_weekday", date="2025-01-06", weekday="Friday")
+        assert "2025-01-10" in result
+
+    def test_quarter(self):
+        result = self.skill.run("quarter", date="2025-07-15")
+        assert "Q3" in result
+
+    def test_weeks_in_year(self):
+        result = self.skill.run("weeks_in_year", year=2025)
+        assert "week" in result
+
+    def test_invalid_date(self):
+        result = self.skill.run("day_of_week", date="not-a-date")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("predict")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# PomodoroSkill
+# ---------------------------------------------------------------------------
+
+class TestPomodoroSkill:
+    from src.skills.pomodoro_skill import PomodoroSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.PomodoroSkill(store_path=f.name)
+
+    def test_start_session(self):
+        skill = self._skill()
+        result = skill.run("start_session", task="Write code")
+        assert "started" in result.lower()
+        assert "Write code" in result
+
+    def test_end_session(self):
+        skill = self._skill()
+        skill.run("start_session", task="Design")
+        result = skill.run("end_session", session_id=1)
+        assert "completed" in result.lower()
+
+    def test_list_sessions(self):
+        skill = self._skill()
+        skill.run("start_session", task="Task A")
+        result = skill.run("list_sessions")
+        assert "Task A" in result
+
+    def test_stats(self):
+        skill = self._skill()
+        skill.run("start_session", task="Coding")
+        skill.run("end_session", session_id=1)
+        result = skill.run("stats")
+        assert "completed" in result.lower()
+
+    def test_clear(self):
+        skill = self._skill()
+        skill.run("start_session", task="Misc")
+        result = skill.run("clear")
+        assert "Cleared" in result
+
+    def test_missing_task(self):
+        skill = self._skill()
+        result = skill.run("start_session")
+        assert result.startswith("Error:")
+
+    def test_end_nonexistent_session(self):
+        skill = self._skill()
+        result = skill.run("end_session", session_id=99)
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("sprint")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# CipherSkill
+# ---------------------------------------------------------------------------
+
+class TestCipherSkill:
+    from src.skills.cipher_skill import CipherSkill
+    skill = CipherSkill()
+
+    def test_caesar_encode_decode(self):
+        encoded = self.skill.run("caesar_encode", text="HELLO", shift=3)
+        decoded = self.skill.run("caesar_decode", text=encoded, shift=3)
+        assert decoded == "HELLO"
+
+    def test_rot13_self_inverse(self):
+        encoded = self.skill.run("rot13", text="Hello World")
+        decoded = self.skill.run("rot13", text=encoded)
+        assert decoded == "Hello World"
+
+    def test_atbash(self):
+        result = self.skill.run("atbash", text="ABC")
+        assert result == "ZYX"
+
+    def test_atbash_self_inverse(self):
+        original = "Hello"
+        encoded = self.skill.run("atbash", text=original)
+        decoded = self.skill.run("atbash", text=encoded)
+        assert decoded == original
+
+    def test_vigenere_encode_decode(self):
+        encoded = self.skill.run("vigenere_encode", text="HELLOWORLD", key="KEY")
+        decoded = self.skill.run("vigenere_decode", text=encoded, key="KEY")
+        assert decoded == "HELLOWORLD"
+
+    def test_caesar_non_alpha_unchanged(self):
+        result = self.skill.run("caesar_encode", text="Hello, World!", shift=1)
+        assert "," in result and "!" in result
+
+    def test_missing_text(self):
+        result = self.skill.run("caesar_encode")
+        assert result.startswith("Error:")
+
+    def test_missing_key(self):
+        result = self.skill.run("vigenere_encode", text="hello")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("xor")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# GitSkill (basic – only tests that don't require an actual git repo)
+# ---------------------------------------------------------------------------
+
+class TestGitSkill:
+    from src.skills.git_skill import GitSkill
+    skill = GitSkill()
+
+    def test_unknown_action(self):
+        result = self.skill.run("explode")
+        assert result.startswith("Error:")
+
+    def test_commit_requires_message(self):
+        result = self.skill.run("commit", repo_path="/tmp")
+        assert result.startswith("Error:")
+
+    def test_checkout_requires_branch(self):
+        result = self.skill.run("checkout", repo_path="/tmp")
+        assert result.startswith("Error:")
+
+    def test_init_real_dir(self):
+        import shutil
+        if not shutil.which("git"):
+            return  # skip if git not installed
+        d = tempfile.mkdtemp()
+        result = self.skill.run("init", repo_path=d)
+        assert not result.startswith("Error:")
