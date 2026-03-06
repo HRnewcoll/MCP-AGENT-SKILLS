@@ -5,8 +5,10 @@ import tempfile
 
 import pytest
 
+from src.skills.agent_swarm import AgentSwarmSkill
 from src.skills.calculator import CalculatorSkill
 from src.skills.code_executor import CodeExecutorSkill
+from src.skills.disclawd import DisclawdSkill
 from src.skills.file_manager import FileManagerSkill
 from src.skills.memory import MemorySkill
 
@@ -658,3 +660,331 @@ class TestHttpRequestSkill:
 
     def test_unknown_action(self):
         assert self.skill.run("explode", url="https://example.com").startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# AgentSwarmSkill
+# ---------------------------------------------------------------------------
+
+class TestAgentSwarmSkill:
+    """Tests for the AgentSwarm (Company) skill."""
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return AgentSwarmSkill(store_path=f.name)
+
+    def test_create_company_website(self):
+        skill = self._skill()
+        result = skill.run("create_company", goal="build a website")
+        assert "Company created" in result
+        assert "website" in result.lower()
+        assert "CEO" in result or "Developer" in result
+
+    def test_create_company_default(self):
+        skill = self._skill()
+        result = skill.run("create_company", goal="do something cool")
+        assert "Company created" in result
+
+    def test_create_company_missing_goal(self):
+        skill = self._skill()
+        result = skill.run("create_company")
+        assert result.startswith("Error:")
+
+    def test_list_agents_empty(self):
+        skill = self._skill()
+        result = skill.run("list_agents")
+        assert "no agents" in result
+
+    def test_list_agents_after_create(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("list_agents")
+        assert "CEO" in result or "Developer" in result
+
+    def test_get_agent(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("get_agent", agent_id=1)
+        assert "Agent #1" in result
+        assert "Role" in result
+
+    def test_get_agent_not_found(self):
+        skill = self._skill()
+        result = skill.run("get_agent", agent_id=999)
+        assert result.startswith("Error:")
+
+    def test_add_agents(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("add_agents", role="Marketing Manager", count=2, level="senior")
+        assert "Marketing Manager" in result
+        assert "2" in result
+
+    def test_add_agents_missing_role(self):
+        skill = self._skill()
+        result = skill.run("add_agents", count=1)
+        assert result.startswith("Error:")
+
+    def test_assign_task(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("assign_task", agent_id=1, task="Design the homepage")
+        assert "Design the homepage" in result
+
+    def test_assign_task_missing_agent_id(self):
+        skill = self._skill()
+        result = skill.run("assign_task", task="Do something")
+        assert result.startswith("Error:")
+
+    def test_assign_task_missing_task(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("assign_task", agent_id=1)
+        assert result.startswith("Error:")
+
+    def test_complete_task(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        skill.run("assign_task", agent_id=1, task="Set project direction")
+        result = skill.run("complete_task", agent_id=1)
+        assert "completed" in result.lower()
+
+    def test_complete_task_no_active_task(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("complete_task", agent_id=1)
+        assert result.startswith("Error:")
+
+    def test_status(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("status")
+        assert "Goal" in result
+        assert "Total agents" in result
+
+    def test_clear(self):
+        skill = self._skill()
+        skill.run("create_company", goal="build a website")
+        result = skill.run("clear")
+        assert "cleared" in result.lower()
+        assert skill.run("list_agents") == "(no agents – use create_company first)"
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("explode")
+        assert result.startswith("Error:")
+
+    def test_persistence(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        skill1 = AgentSwarmSkill(store_path=f.name)
+        skill1.run("create_company", goal="build a website")
+
+        skill2 = AgentSwarmSkill(store_path=f.name)
+        result = skill2.run("list_agents")
+        assert "CEO" in result or "Developer" in result
+
+    def test_marketing_company(self):
+        skill = self._skill()
+        result = skill.run("create_company", goal="create a marketing campaign")
+        assert "Company created" in result
+        assert "Marketing" in result or "CMO" in result
+
+    def test_security_company(self):
+        skill = self._skill()
+        result = skill.run("create_company", goal="security audit")
+        assert "Company created" in result
+        assert "Penetration Tester" in result or "CISO" in result
+
+
+# ---------------------------------------------------------------------------
+# DisclawdSkill
+# ---------------------------------------------------------------------------
+
+class TestDisclawdSkill:
+    """Tests for the Disclawd Discord-like messaging skill."""
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return DisclawdSkill(store_path=f.name)
+
+    def test_create_server(self):
+        skill = self._skill()
+        result = skill.run("create_server", name="MyProject")
+        assert "MyProject" in result
+        assert result.startswith("Created server")
+
+    def test_create_server_missing_name(self):
+        skill = self._skill()
+        result = skill.run("create_server")
+        assert result.startswith("Error:")
+
+    def test_create_server_duplicate(self):
+        skill = self._skill()
+        skill.run("create_server", name="Alpha")
+        result = skill.run("create_server", name="Alpha")
+        assert result.startswith("Error:")
+
+    def test_list_servers_empty(self):
+        skill = self._skill()
+        assert skill.run("list_servers") == "(no servers)"
+
+    def test_list_servers(self):
+        skill = self._skill()
+        skill.run("create_server", name="Project1")
+        result = skill.run("list_servers")
+        assert "Project1" in result
+
+    def test_create_channel(self):
+        skill = self._skill()
+        skill.run("create_server", name="Hub")
+        result = skill.run("create_channel", server="Hub", channel="general")
+        assert "#general" in result
+        assert "Hub" in result
+
+    def test_create_channel_missing_server(self):
+        skill = self._skill()
+        result = skill.run("create_channel", channel="general")
+        assert result.startswith("Error:")
+
+    def test_create_channel_missing_name(self):
+        skill = self._skill()
+        skill.run("create_server", name="Hub")
+        result = skill.run("create_channel", server="Hub")
+        assert result.startswith("Error:")
+
+    def test_create_channel_duplicate(self):
+        skill = self._skill()
+        skill.run("create_server", name="Hub")
+        skill.run("create_channel", server="Hub", channel="dev")
+        result = skill.run("create_channel", server="Hub", channel="dev")
+        assert result.startswith("Error:")
+
+    def test_create_channel_unknown_server(self):
+        skill = self._skill()
+        result = skill.run("create_channel", server="Ghost", channel="dev")
+        assert result.startswith("Error:")
+
+    def test_list_channels(self):
+        skill = self._skill()
+        skill.run("create_server", name="Hub")
+        skill.run("create_channel", server="Hub", channel="general")
+        skill.run("create_channel", server="Hub", channel="dev")
+        result = skill.run("list_channels", server="Hub")
+        assert "#general" in result
+        assert "#dev" in result
+
+    def test_list_channels_empty(self):
+        skill = self._skill()
+        skill.run("create_server", name="Empty")
+        result = skill.run("list_channels", server="Empty")
+        assert "no channels" in result
+
+    def test_post_message(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="general")
+        result = skill.run(
+            "post_message",
+            server="Office",
+            channel="general",
+            author="CEO",
+            message="Welcome everyone!",
+        )
+        assert "CEO" in result
+        assert "Welcome everyone!" in result
+
+    def test_post_message_missing_author(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="general")
+        result = skill.run("post_message", server="Office", channel="general", message="Hi")
+        assert result.startswith("Error:")
+
+    def test_post_message_missing_content(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="general")
+        result = skill.run("post_message", server="Office", channel="general", author="Alex")
+        assert result.startswith("Error:")
+
+    def test_post_message_unknown_channel(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        result = skill.run(
+            "post_message",
+            server="Office",
+            channel="ghost",
+            author="Sam",
+            message="Hello",
+        )
+        assert result.startswith("Error:")
+
+    def test_read_channel(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="general")
+        skill.run("post_message", server="Office", channel="general", author="CEO", message="Msg1")
+        skill.run("post_message", server="Office", channel="general", author="Dev", message="Msg2")
+        result = skill.run("read_channel", server="Office", channel="general")
+        assert "CEO" in result
+        assert "Msg1" in result
+        assert "Msg2" in result
+
+    def test_read_channel_empty(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="silent")
+        result = skill.run("read_channel", server="Office", channel="silent")
+        assert "no messages" in result
+
+    def test_read_channel_limit(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="log")
+        for i in range(10):
+            skill.run("post_message", server="Office", channel="log", author="Bot", message=f"msg{i}")
+        result = skill.run("read_channel", server="Office", channel="log", limit=3)
+        assert "msg9" in result
+        assert "msg7" in result
+        # msg0 should not appear (outside the last 3)
+        assert "msg0" not in result
+
+    def test_list_messages_alias(self):
+        skill = self._skill()
+        skill.run("create_server", name="Office")
+        skill.run("create_channel", server="Office", channel="general")
+        skill.run("post_message", server="Office", channel="general", author="A", message="hello")
+        result = skill.run("list_messages", server="Office", channel="general")
+        assert "hello" in result
+
+    def test_delete_server(self):
+        skill = self._skill()
+        skill.run("create_server", name="ToDelete")
+        result = skill.run("delete_server", server="ToDelete")
+        assert "Deleted" in result
+        assert skill.run("list_servers") == "(no servers)"
+
+    def test_delete_server_unknown(self):
+        skill = self._skill()
+        result = skill.run("delete_server", server="Ghost")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("broadcast")
+        assert result.startswith("Error:")
+
+    def test_persistence(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        skill1 = DisclawdSkill(store_path=f.name)
+        skill1.run("create_server", name="Persistent")
+        skill1.run("create_channel", server="Persistent", channel="general")
+        skill1.run("post_message", server="Persistent", channel="general", author="Alex", message="Hi!")
+
+        skill2 = DisclawdSkill(store_path=f.name)
+        result = skill2.run("read_channel", server="Persistent", channel="general")
+        assert "Hi!" in result

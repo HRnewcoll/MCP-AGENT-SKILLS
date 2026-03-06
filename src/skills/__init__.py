@@ -1,10 +1,12 @@
 """Skill registry – import all skills and expose a unified registry."""
 
+from .agent_swarm import AgentSwarmSkill
 from .calculator import CalculatorSkill
 from .code_executor import CodeExecutorSkill
 from .data_converter import DataConverterSkill
 from .datetime_skill import DatetimeSkill
 from .diff_tool import DiffToolSkill
+from .disclawd import DisclawdSkill
 from .file_manager import FileManagerSkill
 from .hash_tool import HashToolSkill
 from .http_request import HttpRequestSkill
@@ -22,11 +24,13 @@ from .weather import WeatherSkill
 from .web_search import WebSearchSkill
 
 __all__ = [
+    "AgentSwarmSkill",
     "CalculatorSkill",
     "CodeExecutorSkill",
     "DataConverterSkill",
     "DatetimeSkill",
     "DiffToolSkill",
+    "DisclawdSkill",
     "FileManagerSkill",
     "HashToolSkill",
     "HttpRequestSkill",
@@ -47,11 +51,13 @@ __all__ = [
 
 # Ordered list of all available skill classes.
 ALL_SKILLS = [
+    AgentSwarmSkill,
     CalculatorSkill,
     CodeExecutorSkill,
     DataConverterSkill,
     DatetimeSkill,
     DiffToolSkill,
+    DisclawdSkill,
     FileManagerSkill,
     HashToolSkill,
     HttpRequestSkill,
