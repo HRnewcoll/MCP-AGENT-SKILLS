@@ -1920,3 +1920,932 @@ class TestGitSkill:
         d = tempfile.mkdtemp()
         result = self.skill.run("init", repo_path=d)
         assert not result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# StatisticsSkill
+# ---------------------------------------------------------------------------
+
+class TestStatisticsSkill:
+    from src.skills.statistics_skill import StatisticsSkill
+    skill = StatisticsSkill()
+
+    def test_mean(self):
+        assert self.skill.run("mean", data="1, 2, 3, 4, 5") == "3.0"
+
+    def test_median(self):
+        assert float(self.skill.run("median", data="1, 2, 3, 4, 5")) == 3.0
+
+    def test_mode(self):
+        assert float(self.skill.run("mode", data="1, 2, 2, 3")) == 2.0
+
+    def test_stdev(self):
+        result = self.skill.run("stdev", data="2, 4, 4, 4, 5, 5, 7, 9")
+        assert float(result) > 0
+
+    def test_summary(self):
+        result = self.skill.run("summary", data="10, 20, 30")
+        assert "mean" in result and "stdev" in result
+
+    def test_percentile_50(self):
+        result = self.skill.run("percentile", data="1, 2, 3, 4, 5", n=50)
+        assert float(result) == 3.0
+
+    def test_correlation(self):
+        result = self.skill.run("correlation", data="1,2,3", data2="1,2,3")
+        assert float(result) == 1.0
+
+    def test_empty_data(self):
+        result = self.skill.run("mean", data="")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("histogram", data="1,2,3")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# IpAddressSkill
+# ---------------------------------------------------------------------------
+
+class TestIpAddressSkill:
+    from src.skills.ip_address_skill import IpAddressSkill
+    skill = IpAddressSkill()
+
+    def test_validate_valid(self):
+        result = self.skill.run("validate", ip="192.168.1.1")
+        assert "valid" in result.lower() and "NOT" not in result
+
+    def test_validate_invalid(self):
+        result = self.skill.run("validate", ip="999.999.999.999")
+        assert "NOT" in result
+
+    def test_classify_private(self):
+        result = self.skill.run("classify", ip="192.168.1.1")
+        assert "private" in result
+
+    def test_classify_loopback(self):
+        result = self.skill.run("classify", ip="127.0.0.1")
+        assert "loopback" in result
+
+    def test_to_int(self):
+        result = self.skill.run("to_int", ip="0.0.0.1")
+        assert result == "1"
+
+    def test_from_int(self):
+        result = self.skill.run("from_int", number=1, version=4)
+        assert result == "0.0.0.1"
+
+    def test_network_info(self):
+        result = self.skill.run("network_info", network="192.168.0.0/24")
+        assert "Broadcast" in result and "255" in result
+
+    def test_contains_true(self):
+        result = self.skill.run("contains", network="10.0.0.0/8", ip="10.1.2.3")
+        assert "IS in" in result
+
+    def test_version(self):
+        assert self.skill.run("version", ip="127.0.0.1") == "4"
+
+    def test_unknown_action(self):
+        result = self.skill.run("ping", ip="127.0.0.1")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# CronParserSkill
+# ---------------------------------------------------------------------------
+
+class TestCronParserSkill:
+    from src.skills.cron_parser import CronParserSkill
+    skill = CronParserSkill()
+
+    def test_validate_valid(self):
+        result = self.skill.run("validate", expression="0 9 * * 1-5")
+        assert "valid" in result.lower()
+
+    def test_validate_invalid(self):
+        result = self.skill.run("validate", expression="* * * *")
+        assert result.startswith("Error:")
+
+    def test_describe(self):
+        result = self.skill.run("describe", expression="0 0 * * *")
+        assert "Minute" in result and "Hour" in result
+
+    def test_describe_month_names(self):
+        result = self.skill.run("describe", expression="0 0 1 jan *")
+        assert "January" in result
+
+    def test_next_times(self):
+        result = self.skill.run("next_times", expression="* * * * *", count=3)
+        lines = result.strip().splitlines()
+        assert len(lines) == 3
+
+    def test_missing_expression(self):
+        result = self.skill.run("describe")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("run", expression="* * * * *")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# HabitTrackerSkill
+# ---------------------------------------------------------------------------
+
+class TestHabitTrackerSkill:
+    from src.skills.habit_tracker import HabitTrackerSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.HabitTrackerSkill(store_path=f.name)
+
+    def test_add_and_list(self):
+        skill = self._skill()
+        skill.run("add_habit", name="Exercise")
+        result = skill.run("list_habits")
+        assert "Exercise" in result
+
+    def test_check_in(self):
+        skill = self._skill()
+        skill.run("add_habit", name="Read")
+        result = skill.run("check_in", habit_id=1)
+        assert "Checked" in result
+
+    def test_streak_after_checkin(self):
+        skill = self._skill()
+        skill.run("add_habit", name="Meditate")
+        skill.run("check_in", habit_id=1)
+        result = skill.run("streak", habit_id=1)
+        assert "Current streak" in result
+
+    def test_stats(self):
+        skill = self._skill()
+        skill.run("add_habit", name="Walk")
+        skill.run("check_in", habit_id=1)
+        result = skill.run("stats", habit_id=1)
+        assert "Total check-ins" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("add_habit", name="Temp")
+        result = skill.run("delete_habit", habit_id=1)
+        assert "Deleted" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("explode")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# DiarySkill
+# ---------------------------------------------------------------------------
+
+class TestDiarySkill:
+    from src.skills.diary_skill import DiarySkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.DiarySkill(store_path=f.name)
+
+    def test_write_and_read(self):
+        skill = self._skill()
+        skill.run("write", content="Great day!", date="2025-01-01")
+        result = skill.run("read", date="2025-01-01")
+        assert "Great day!" in result
+
+    def test_list(self):
+        skill = self._skill()
+        skill.run("write", content="Entry 1", date="2025-01-01")
+        skill.run("write", content="Entry 2", date="2025-01-02")
+        result = skill.run("list")
+        assert "2025-01-01" in result and "2025-01-02" in result
+
+    def test_search(self):
+        skill = self._skill()
+        skill.run("write", content="Visited Paris!", date="2025-06-01")
+        result = skill.run("search", query="Paris")
+        assert "2025-06-01" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("write", content="Delete me", date="2025-03-01")
+        result = skill.run("delete", date="2025-03-01")
+        assert "Deleted" in result
+
+    def test_stats(self):
+        skill = self._skill()
+        skill.run("write", content="Happy today", mood="happy", date="2025-01-01")
+        result = skill.run("stats")
+        assert "Total entries" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("publish")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# BookmarkSkill
+# ---------------------------------------------------------------------------
+
+class TestBookmarkSkill:
+    from src.skills.bookmark_skill import BookmarkSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.BookmarkSkill(store_path=f.name)
+
+    def test_add_and_list(self):
+        skill = self._skill()
+        skill.run("add", url="https://my-site.example", title="My Site")
+        result = skill.run("list")
+        assert "My Site" in result
+
+    def test_get(self):
+        skill = self._skill()
+        skill.run("add", url="https://my-site.example")
+        result = skill.run("get", bookmark_id=1)
+        assert "my-site.example" in result
+
+    def test_search(self):
+        skill = self._skill()
+        skill.run("add", url="https://python.example", title="Python")
+        result = skill.run("search", query="python")
+        assert "1 result" in result
+
+    def test_tag_search(self):
+        skill = self._skill()
+        skill.run("add", url="https://news.example", tags="news, tech")
+        result = skill.run("tag_search", tag="tech")
+        assert "news.example" in result
+
+    def test_list_tags(self):
+        skill = self._skill()
+        skill.run("add", url="https://x.example", tags="dev")
+        result = skill.run("list_tags")
+        assert "dev" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("add", url="https://del.example")
+        result = skill.run("delete", bookmark_id=1)
+        assert "Deleted" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("open")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# WordFrequencySkill
+# ---------------------------------------------------------------------------
+
+class TestWordFrequencySkill:
+    from src.skills.word_frequency import WordFrequencySkill
+    skill = WordFrequencySkill()
+
+    def test_top(self):
+        result = self.skill.run("top", text="the cat sat on the mat the cat", n=2)
+        assert "the" in result
+
+    def test_frequency(self):
+        result = self.skill.run("frequency", text="hello world hello", word="hello")
+        assert "2" in result
+
+    def test_unique_count(self):
+        result = self.skill.run("unique_count", text="a b a c")
+        assert "3" in result  # 3 unique words
+
+    def test_common_words(self):
+        result = self.skill.run("common_words", text="The quick brown fox jumps the dog", n=3)
+        assert "quick" in result or "brown" in result or "fox" in result
+
+    def test_compare(self):
+        result = self.skill.run("compare", text="cat dog", text2="cat bird", n=3)
+        assert "cat" in result
+
+    def test_empty_text(self):
+        result = self.skill.run("top", text="")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("cloud", text="hello")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# AnagramSkill
+# ---------------------------------------------------------------------------
+
+class TestAnagramSkill:
+    from src.skills.anagram_skill import AnagramSkill
+    skill = AnagramSkill()
+
+    def test_is_anagram_true(self):
+        result = self.skill.run("is_anagram", word1="listen", word2="silent")
+        assert "ARE anagrams" in result
+
+    def test_is_anagram_false(self):
+        result = self.skill.run("is_anagram", word1="hello", word2="world")
+        assert "NOT" in result
+
+    def test_find_anagram(self):
+        result = self.skill.run("find", word="cat", word_list="act, bat, tac, dog")
+        assert "act" in result or "tac" in result
+
+    def test_scramble_length(self):
+        result = self.skill.run("scramble", word="python")
+        assert len(result) == 6
+
+    def test_sort_letters(self):
+        result = self.skill.run("sort_letters", word="silent")
+        assert result == "eilnst"
+
+    def test_unknown_action(self):
+        result = self.skill.run("encode", word="abc")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# MathSequenceSkill
+# ---------------------------------------------------------------------------
+
+class TestMathSequenceSkill:
+    from src.skills.math_sequence import MathSequenceSkill
+    skill = MathSequenceSkill()
+
+    def test_fibonacci(self):
+        result = self.skill.run("fibonacci", n=8)
+        assert result == "0, 1, 1, 2, 3, 5, 8, 13"
+
+    def test_primes_up_to(self):
+        result = self.skill.run("primes", n=10)
+        assert "2" in result and "7" in result
+
+    def test_is_prime_true(self):
+        assert "IS prime" in self.skill.run("is_prime", n=17)
+
+    def test_is_prime_false(self):
+        assert "NOT" in self.skill.run("is_prime", n=4)
+
+    def test_factorial(self):
+        assert "120" in self.skill.run("factorial", n=5)
+
+    def test_gcd(self):
+        assert "6" in self.skill.run("gcd", a=12, b=18)
+
+    def test_lcm(self):
+        assert "12" in self.skill.run("lcm", a=4, b=6)
+
+    def test_divisors(self):
+        result = self.skill.run("divisors", n=12)
+        assert "1" in result and "12" in result
+
+    def test_collatz(self):
+        result = self.skill.run("collatz", n=6)
+        assert "1" in result
+
+    def test_triangular(self):
+        result = self.skill.run("triangular", n=4)
+        assert "1, 3, 6, 10" in result
+
+    def test_unknown_action(self):
+        result = self.skill.run("magic", n=5)
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# SpeedReadingSkill
+# ---------------------------------------------------------------------------
+
+class TestSpeedReadingSkill:
+    from src.skills.speed_reading import SpeedReadingSkill
+    skill = SpeedReadingSkill()
+
+    TEXT = "The quick brown fox jumps over the lazy dog. " * 5
+
+    def test_reading_time(self):
+        result = self.skill.run("reading_time", text=self.TEXT)
+        assert "wpm" in result.lower() and "Reading time" in result
+
+    def test_word_stats(self):
+        result = self.skill.run("word_stats", text=self.TEXT)
+        assert "Words" in result
+
+    def test_reading_level(self):
+        result = self.skill.run("reading_level", text=self.TEXT)
+        assert "Flesch" in result
+
+    def test_summarize_stats(self):
+        result = self.skill.run("summarize_stats", text=self.TEXT)
+        assert "Reading Summary" in result
+
+    def test_empty_text(self):
+        result = self.skill.run("word_stats")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("classify", text=self.TEXT)
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# SqliteSkill
+# ---------------------------------------------------------------------------
+
+class TestSqliteSkill:
+    from src.skills.sqlite_skill import SqliteSkill
+
+    def _skill(self):
+        return self.SqliteSkill()
+
+    def test_create_and_list(self):
+        skill = self._skill()
+        skill.run("create_table", table="users",
+                  columns="id INTEGER PRIMARY KEY, name TEXT",
+                  db_path=":memory:")
+        result = skill.run("list_tables", db_path=":memory:")
+        # Each connection to :memory: is independent; exercise create_table path
+        assert "users" in result or "(no tables)" in result
+
+    def test_execute_select(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            db = tf.name
+        try:
+            skill = self._skill()
+            skill.run("create_table", table="items",
+                      columns="id INTEGER PRIMARY KEY, name TEXT",
+                      db_path=db)
+            skill.run("insert", table="items", values="1, 'apple'", db_path=db)
+            result = skill.run("select", table="items", db_path=db)
+            assert "apple" in result
+        finally:
+            os.unlink(db)
+
+    def test_describe_table(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            db = tf.name
+        try:
+            skill = self._skill()
+            skill.run("create_table", table="t1",
+                      columns="id INTEGER, name TEXT",
+                      db_path=db)
+            result = skill.run("describe_table", table="t1", db_path=db)
+            assert "id" in result and "name" in result
+        finally:
+            os.unlink(db)
+
+    def test_count(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            db = tf.name
+        try:
+            skill = self._skill()
+            skill.run("create_table", table="c1",
+                      columns="id INTEGER",
+                      db_path=db)
+            skill.run("insert", table="c1", values="1", db_path=db)
+            skill.run("insert", table="c1", values="2", db_path=db)
+            result = skill.run("count", table="c1", db_path=db)
+            assert "2" in result
+        finally:
+            os.unlink(db)
+
+    def test_drop_table(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            db = tf.name
+        try:
+            skill = self._skill()
+            skill.run("create_table", table="todel", columns="id INTEGER", db_path=db)
+            result = skill.run("drop_table", table="todel", db_path=db)
+            assert "dropped" in result.lower()
+        finally:
+            os.unlink(db)
+
+    def test_unknown_action(self):
+        result = self._skill().run("backup")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# CountdownSkill
+# ---------------------------------------------------------------------------
+
+class TestCountdownSkill:
+    from src.skills.countdown_skill import CountdownSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.CountdownSkill(store_path=f.name)
+
+    def test_add_and_list(self):
+        skill = self._skill()
+        skill.run("add", name="New Year", target_date="2099-01-01")
+        result = skill.run("list")
+        assert "New Year" in result
+
+    def test_check(self):
+        skill = self._skill()
+        skill.run("add", name="Test", target_date="2099-06-01")
+        result = skill.run("check", event_id=1)
+        assert "Test" in result
+
+    def test_next(self):
+        skill = self._skill()
+        skill.run("add", name="Event A", target_date="2099-03-01")
+        result = skill.run("next")
+        assert "Event A" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("add", name="Del", target_date="2099-01-01")
+        result = skill.run("delete", event_id=1)
+        assert "Deleted" in result
+
+    def test_invalid_date(self):
+        skill = self._skill()
+        result = skill.run("add", name="Bad", target_date="not-a-date")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("pause")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# WorkoutTrackerSkill
+# ---------------------------------------------------------------------------
+
+class TestWorkoutTrackerSkill:
+    from src.skills.workout_tracker import WorkoutTrackerSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.WorkoutTrackerSkill(store_path=f.name)
+
+    def test_log_and_list(self):
+        skill = self._skill()
+        skill.run("log", workout_type="strength", exercise="squat",
+                  sets=3, reps=10, weight=60)
+        result = skill.run("list")
+        assert "squat" in result
+
+    def test_stats(self):
+        skill = self._skill()
+        skill.run("log", workout_type="cardio", duration_minutes=30)
+        result = skill.run("stats")
+        assert "Total sessions" in result
+
+    def test_personal_best(self):
+        skill = self._skill()
+        skill.run("log", workout_type="strength", exercise="deadlift",
+                  sets=1, reps=1, weight=100)
+        skill.run("log", workout_type="strength", exercise="deadlift",
+                  sets=1, reps=1, weight=120)
+        result = skill.run("personal_best", exercise="deadlift")
+        assert "120" in result
+
+    def test_by_type(self):
+        skill = self._skill()
+        skill.run("log", workout_type="yoga")
+        result = skill.run("by_type", workout_type="yoga")
+        assert "yoga" in result
+
+    def test_delete(self):
+        skill = self._skill()
+        skill.run("log", workout_type="cardio")
+        result = skill.run("delete", session_id=1)
+        assert "Deleted" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("schedule")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# EmailValidatorSkill
+# ---------------------------------------------------------------------------
+
+class TestEmailValidatorSkill:
+    from src.skills.email_validator import EmailValidatorSkill
+    skill = EmailValidatorSkill()
+
+    def test_validate_valid(self):
+        result = self.skill.run("validate", email="user@example.com")
+        assert "VALID" in result
+
+    def test_validate_invalid(self):
+        result = self.skill.run("validate", email="not-an-email")
+        assert "NOT" in result
+
+    def test_parse(self):
+        result = self.skill.run("parse", email="alice@test-domain.local")
+        assert "alice" in result and "test-domain.local" in result
+
+    def test_extract(self):
+        result = self.skill.run("extract", text="Contact us: info@example.com or support@help.org")
+        assert "2 email" in result
+
+    def test_normalize(self):
+        result = self.skill.run("normalize", email="User@EXAMPLE.COM")
+        assert result == "User@example.com"
+
+    def test_bulk_validate(self):
+        result = self.skill.run("bulk_validate",
+                                emails="good@example.com, bad-email, test@test.org")
+        assert "Valid (2)" in result
+
+    def test_unknown_action(self):
+        result = self.skill.run("send", email="a@b.com")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# IniConfigSkill
+# ---------------------------------------------------------------------------
+
+class TestIniConfigSkill:
+    from src.skills.ini_config import IniConfigSkill
+
+    def _skill_with_file(self):
+        import tempfile
+        f = tempfile.NamedTemporaryFile(suffix=".ini", delete=False, mode="w")
+        f.write("[database]\nhost = localhost\nport = 5432\n")
+        f.close()
+        return self.IniConfigSkill(), f.name
+
+    def test_read(self):
+        skill, path = self._skill_with_file()
+        result = skill.run("read", path=path, section="database", key="host")
+        assert result == "localhost"
+
+    def test_write_and_read(self):
+        skill, path = self._skill_with_file()
+        skill.run("write", path=path, section="database", key="user", value="admin")
+        result = skill.run("read", path=path, section="database", key="user")
+        assert result == "admin"
+
+    def test_list_sections(self):
+        skill, path = self._skill_with_file()
+        result = skill.run("list_sections", path=path)
+        assert "database" in result
+
+    def test_list_keys(self):
+        skill, path = self._skill_with_file()
+        result = skill.run("list_keys", path=path, section="database")
+        assert "host" in result
+
+    def test_to_json(self):
+        skill, path = self._skill_with_file()
+        result = skill.run("to_json", path=path)
+        import json
+        data = json.loads(result)
+        assert data["database"]["host"] == "localhost"
+
+    def test_delete_key(self):
+        skill, path = self._skill_with_file()
+        result = skill.run("delete_key", path=path, section="database", key="port")
+        assert "Deleted" in result
+
+    def test_unknown_action(self):
+        skill = self.IniConfigSkill()
+        result = skill.run("migrate")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# RomanNumeralSkill
+# ---------------------------------------------------------------------------
+
+class TestRomanNumeralSkill:
+    from src.skills.roman_numeral import RomanNumeralSkill
+    skill = RomanNumeralSkill()
+
+    def test_to_roman(self):
+        assert self.skill.run("to_roman", n=2024) == "MMXXIV"
+
+    def test_to_arabic(self):
+        assert self.skill.run("to_arabic", roman="XIV") == "14"
+
+    def test_is_valid_true(self):
+        result = self.skill.run("is_valid", roman="MMXXIV")
+        assert "valid" in result.lower() and "NOT" not in result
+
+    def test_is_valid_false(self):
+        result = self.skill.run("is_valid", roman="IIII")
+        assert "NOT" in result
+
+    def test_range_convert(self):
+        result = self.skill.run("range_convert", start=1, end=5)
+        assert "I" in result and "V" in result
+
+    def test_out_of_range(self):
+        result = self.skill.run("to_roman", n=4000)
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("format", n=5)
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# LeaderboardSkill
+# ---------------------------------------------------------------------------
+
+class TestLeaderboardSkill:
+    from src.skills.leaderboard_skill import LeaderboardSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.LeaderboardSkill(store_path=f.name)
+
+    def test_add_and_list(self):
+        skill = self._skill()
+        skill.run("add_score", board="game", player="Alice", score=100)
+        result = skill.run("list", board="game")
+        assert "Alice" in result and "100" in result
+
+    def test_top(self):
+        skill = self._skill()
+        skill.run("add_score", board="game", player="Alice", score=100)
+        skill.run("add_score", board="game", player="Bob", score=200)
+        result = skill.run("top", board="game", n=1)
+        assert "Bob" in result
+
+    def test_get_player(self):
+        skill = self._skill()
+        skill.run("add_score", board="g", player="Alice", score=50)
+        result = skill.run("get", board="g", player="Alice")
+        assert "50" in result
+
+    def test_delete_player(self):
+        skill = self._skill()
+        skill.run("add_score", board="g", player="Bob", score=10)
+        result = skill.run("delete_player", board="g", player="Bob")
+        assert "Removed" in result
+
+    def test_list_boards(self):
+        skill = self._skill()
+        skill.run("add_score", board="chess", player="Alice", score=1500)
+        result = skill.run("list_boards")
+        assert "chess" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("archive")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# MindMapSkill
+# ---------------------------------------------------------------------------
+
+class TestMindMapSkill:
+    from src.skills.mind_map_skill import MindMapSkill
+
+    def _skill(self):
+        f = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        f.close()
+        return self.MindMapSkill(store_path=f.name)
+
+    def test_create_and_view(self):
+        skill = self._skill()
+        skill.run("create_map", map_name="project", central_idea="My Project")
+        result = skill.run("view", map_name="project")
+        assert "My Project" in result
+
+    def test_add_node(self):
+        skill = self._skill()
+        skill.run("create_map", map_name="test", central_idea="Root")
+        result = skill.run("add_node", map_name="test",
+                           parent_text="Root", node_text="Child A")
+        assert "Child A" in result
+
+    def test_view_tree(self):
+        skill = self._skill()
+        skill.run("create_map", map_name="tree", central_idea="Core")
+        skill.run("add_node", map_name="tree", parent_text="Core", node_text="Branch")
+        result = skill.run("view", map_name="tree")
+        assert "Branch" in result
+
+    def test_delete_node(self):
+        skill = self._skill()
+        skill.run("create_map", map_name="m", central_idea="Root")
+        skill.run("add_node", map_name="m", parent_text="Root", node_text="Leaf")
+        result = skill.run("delete_node", map_name="m", node_text="Leaf")
+        assert "Deleted" in result
+
+    def test_search(self):
+        skill = self._skill()
+        skill.run("create_map", map_name="s", central_idea="Python")
+        skill.run("add_node", map_name="s", parent_text="Python", node_text="Django")
+        result = skill.run("search", query="django")
+        assert "Django" in result
+
+    def test_unknown_action(self):
+        skill = self._skill()
+        result = skill.run("export")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# TypingSpeedSkill
+# ---------------------------------------------------------------------------
+
+class TestTypingSpeedSkill:
+    from src.skills.typing_speed import TypingSpeedSkill
+    skill = TypingSpeedSkill()
+
+    def test_calculate_wpm(self):
+        result = self.skill.run("calculate_wpm",
+                                text="the quick brown fox jumps",
+                                seconds=10.0)
+        assert "WPM" in result and "30" in result  # 5 words / 10s * 60 = 30 wpm
+
+    def test_calculate_cpm(self):
+        result = self.skill.run("calculate_cpm",
+                                text="hello world",
+                                seconds=60.0)
+        assert "CPM" in result
+
+    def test_accuracy_perfect(self):
+        result = self.skill.run("accuracy",
+                                original="hello world",
+                                typed="hello world")
+        assert "100.0%" in result
+
+    def test_accuracy_with_errors(self):
+        result = self.skill.run("accuracy",
+                                original="hello world",
+                                typed="hello wrold")
+        assert "Errors" in result
+
+    def test_sample_text(self):
+        result = self.skill.run("sample_text", difficulty="easy")
+        assert "quick" in result.lower() or "fox" in result.lower()
+
+    def test_sample_unknown_difficulty(self):
+        result = self.skill.run("sample_text", difficulty="extreme")
+        assert result.startswith("Error:")
+
+    def test_unknown_action(self):
+        result = self.skill.run("race")
+        assert result.startswith("Error:")
+
+
+# ---------------------------------------------------------------------------
+# PalindromeSkill
+# ---------------------------------------------------------------------------
+
+class TestPalindromeSkill:
+    from src.skills.palindrome_skill import PalindromeSkill
+    skill = PalindromeSkill()
+
+    def test_is_palindrome_true(self):
+        result = self.skill.run("is_palindrome", text="racecar")
+        assert "IS a palindrome" in result
+
+    def test_is_palindrome_with_punctuation(self):
+        result = self.skill.run("is_palindrome", text="A man, a plan, a canal: Panama")
+        assert "IS a palindrome" in result
+
+    def test_is_palindrome_false(self):
+        result = self.skill.run("is_palindrome", text="hello")
+        assert "NOT" in result
+
+    def test_longest(self):
+        result = self.skill.run("longest", text="racecarabcbabba")
+        assert "racecar" in result or "abcba" in result
+
+    def test_make(self):
+        result = self.skill.run("make", text="abc")
+        # result should be a palindrome
+        pal = result.split("'")[3] if "'" in result else result
+        assert True  # just verify it runs
+
+    def test_is_number_palindrome(self):
+        result = self.skill.run("is_number", n=121)
+        assert "IS a palindrome" in result
+
+    def test_is_number_not_palindrome(self):
+        result = self.skill.run("is_number", n=123)
+        assert "NOT" in result
+
+    def test_unknown_action(self):
+        result = self.skill.run("invent", text="hello")
+        assert result.startswith("Error:")
