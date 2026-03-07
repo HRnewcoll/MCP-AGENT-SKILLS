@@ -2,6 +2,26 @@
 
 from .agent_swarm import AgentSwarmSkill
 from .anagram_skill import AnagramSkill
+from .bmi_calculator import BmiCalculatorSkill
+from .chart_skill import ChartSkill
+from .color_palette import ColorPaletteSkill
+from .currency_skill import CurrencySkill
+from .dice_roller import DiceRollerSkill
+from .emoji_skill import EmojiSkill
+from .finance_skill import FinanceSkill
+from .fuzzy_match import FuzzyMatchSkill
+from .joke_skill import JokeSkill
+from .loan_calculator import LoanCalculatorSkill
+from .matrix_skill import MatrixSkill
+from .nato_alphabet import NatoAlphabetSkill
+from .permutation_skill import PermutationSkill
+from .poll_skill import PollSkill
+from .quote_skill import QuoteSkill
+from .reading_list import ReadingListSkill
+from .sentiment_skill import SentimentSkill
+from .table_formatter import TableFormatterSkill
+from .time_tracker import TimeTrackerSkill
+from .tip_calculator import TipCalculatorSkill
 from .archive_skill import ArchiveSkill
 from .ascii_art import AsciiArtSkill
 from .base64_skill import Base64Skill
@@ -66,6 +86,26 @@ from .workout_tracker import WorkoutTrackerSkill
 __all__ = [
     "AgentSwarmSkill",
     "AnagramSkill",
+    "BmiCalculatorSkill",
+    "ChartSkill",
+    "ColorPaletteSkill",
+    "CurrencySkill",
+    "DiceRollerSkill",
+    "EmojiSkill",
+    "FinanceSkill",
+    "FuzzyMatchSkill",
+    "JokeSkill",
+    "LoanCalculatorSkill",
+    "MatrixSkill",
+    "NatoAlphabetSkill",
+    "PermutationSkill",
+    "PollSkill",
+    "QuoteSkill",
+    "ReadingListSkill",
+    "SentimentSkill",
+    "TableFormatterSkill",
+    "TimeTrackerSkill",
+    "TipCalculatorSkill",
     "ArchiveSkill",
     "AsciiArtSkill",
     "Base64Skill",
@@ -133,6 +173,26 @@ __all__ = [
 ALL_SKILLS = [
     AgentSwarmSkill,
     AnagramSkill,
+    BmiCalculatorSkill,
+    ChartSkill,
+    ColorPaletteSkill,
+    CurrencySkill,
+    DiceRollerSkill,
+    EmojiSkill,
+    FinanceSkill,
+    FuzzyMatchSkill,
+    JokeSkill,
+    LoanCalculatorSkill,
+    MatrixSkill,
+    NatoAlphabetSkill,
+    PermutationSkill,
+    PollSkill,
+    QuoteSkill,
+    ReadingListSkill,
+    SentimentSkill,
+    TableFormatterSkill,
+    TimeTrackerSkill,
+    TipCalculatorSkill,
     ArchiveSkill,
     AsciiArtSkill,
     Base64Skill,
